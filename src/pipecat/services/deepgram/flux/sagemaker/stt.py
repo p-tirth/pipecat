@@ -90,6 +90,13 @@ class DeepgramFluxSageMakerSTTService(DeepgramFluxSTTBase):
     Settings = DeepgramFluxSageMakerSTTSettings
     _settings: Settings
 
+    # The Flux build served by SageMaker accepts only CloseStream as a client
+    # message, and rejects `numerals` in the connection URL; `model` is fixed
+    # when the endpoint is deployed. No setting can be applied to a running
+    # session, so updates are reported as unsupported instead of being sent.
+    _CONFIGURE_FIELDS = frozenset()
+    _CONNECTION_FIELDS = frozenset()
+
     def __init__(
         self,
         *,
@@ -209,11 +216,11 @@ class DeepgramFluxSageMakerSTTService(DeepgramFluxSTTBase):
 
             # Wait for Flux to confirm the connection is ready
             logger.debug("SageMaker session started, waiting for Flux connection confirmation...")
-            await self._connection_established_event.wait()
+            await self._await_connection_established()
 
-            # Note: Flux does not support KeepAlive messages (only CloseStream and
-            # Configure are valid). The watchdog task handles keeping the connection
-            # alive by sending silence when needed.
+            # Note: this Flux build accepts only CloseStream as a client message,
+            # so there is no KeepAlive to send. The watchdog task keeps the
+            # connection alive by sending silence when needed.
             self._watchdog_task = self.create_task(self._watchdog_task_handler())
 
             logger.debug("Connected to Deepgram Flux on SageMaker")
